@@ -1,0 +1,16 @@
+{
+  "domain": "multi_solar_forecast",
+  "name": "Multi-Array Solar Forecast",
+  "codeowners": ["mlinky"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/mlinky/ha-open-meteo-multi-array-forecast",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/mlinky/ha-open-meteo-multi-array-forecast/issues",
+  "loggers": ["custom_components.multi_solar_forecast"],
+  "requirements": ["aiohttp>=3.8.0"],
+  "ssdp": [],
+  "version": "1.0.0",
+  "zeroconf": []
+}
