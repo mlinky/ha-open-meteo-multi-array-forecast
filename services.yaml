@@ -1,0 +1,41 @@
+update_forecast:
+  name: Update Solar Forecast
+  description: Manually update the solar forecast data for all or specific arrays.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Configuration entry ID to update (optional - if not provided, all entries will be updated).
+      required: false
+      example: "01234567890abcdef"
+      selector:
+        text:
+
+get_hourly_forecast:
+  name: Get Hourly Forecast
+  description: Retrieve detailed hourly forecast data for a specific array or all arrays.
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Configuration entry ID to get forecast from.
+      required: true
+      example: "01234567890abcdef"
+      selector:
+        text:
+    array_name:
+      name: Array Name
+      description: Name of the specific solar array (optional - if not provided, returns combined data for all arrays).
+      required: false
+      example: "South Roof"
+      selector:
+        text:
+    days:
+      name: Forecast Days
+      description: Number of days of forecast data to retrieve.
+      required: false
+      default: 1
+      example: 3
+      selector:
+        number:
+          min: 1
+          max: 7
+          mode: slider
