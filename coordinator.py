@@ -1,5 +1,5 @@
 """
-Data update coordinator for Multi-Array Solar Forecast integration.
+Data update coordinator for Multi-Array Solar Forecast integration with Energy Dashboard support.
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class SolarForecastCoordinator(DataUpdateCoordinator):
-    """Coordinator to fetch solar forecast data for multiple arrays."""
+    """Coordinator to fetch solar forecast data for multiple arrays with Energy Dashboard support."""
     
     def __init__(
         self,
@@ -452,3 +452,51 @@ class SolarForecastCoordinator(DataUpdateCoordinator):
                     combined_data["energy_forecast"][i] += power
         
         return combined_data
+    
+    def get_energy_dashboard_forecast(self, forecast_type: str = "today") -> Dict[str, Any]:
+        """Get forecast data specifically formatted for the Energy Dashboard."""
+        if not self.data:
+            return {}
+        
+        combined_data = self._combine_array_data()
+        timestamps = combined_data.get("timestamps", [])
+        power_values = combined_data.get("power_forecast", [])
+        
+        if not timestamps or not power_values:
+            return {}
+        
+        now = datetime.now().astimezone()
+        uk_tz = ZoneInfo('Europe/London')
+        
+        # Determine time range
+        if forecast_type == "today":
+            start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_time = start_time + timedelta(days=1)
+        elif forecast_type == "tomorrow":
+            start_time = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+            end_time = start_time + timedelta(days=1)
+        else:  # "remaining_today"
+            start_time = now
+            end_time = now.replace(hour=23, minute=59, second=59) + timedelta(seconds=1)
+        
+        forecast_data = []
+        total_energy = 0.0
+        
+        for i, timestamp in enumerate(timestamps):
+            if (start_time.replace(tzinfo=uk_tz) <= timestamp.replace(tzinfo=uk_tz) < end_time.replace(tzinfo=uk_tz) 
+                and i < len(power_values)):
+                energy_kwh = power_values[i]  # Assuming 1-hour intervals
+                total_energy += energy_kwh
+                
+                forecast_data.append({
+                    "start": timestamp.isoformat(),
+                    "end": (timestamp + timedelta(hours=1)).isoformat(),
+                    "energy_kwh": round(energy_kwh, 3),
+                })
+        
+        return {
+            "forecast": forecast_data,
+            "total_energy": round(total_energy, 3),
+            "forecast_type": forecast_type,
+            "generated_at": now.isoformat(),
+        }
