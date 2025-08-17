@@ -314,6 +314,7 @@ class SolarForecastCoordinator(DataUpdateCoordinator):
             "today_energy": self._calculate_daily_energy(timestamps, power_values, today_start, tomorrow_start),
             "tomorrow_energy": self._calculate_daily_energy(timestamps, power_values, tomorrow_start, day_after_tomorrow),
             "peak_power_today": self._get_peak_power(timestamps, power_values, today_start, tomorrow_start),
+            "peak_power_today_remaining": self._get_peak_power(timestamps, power_values, now, tomorrow_start),
             "peak_power_tomorrow": self._get_peak_power(timestamps, power_values, tomorrow_start, day_after_tomorrow),
             "last_updated": now.isoformat(),
         }
@@ -392,6 +393,7 @@ class SolarForecastCoordinator(DataUpdateCoordinator):
             "today_energy": 0.0,
             "tomorrow_energy": 0.0,
             "peak_power_today": 0.0,
+            "peak_power_today_remaining": 0.0,
             "peak_power_tomorrow": 0.0,
             "last_updated": datetime.now().isoformat(),
         }
