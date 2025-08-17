@@ -49,6 +49,12 @@ SENSOR_TYPES = {
         "device_class": "power",
         "state_class": "measurement",
     },
+    "peak_power_today_remaining": {
+        "name": "Peak Power Remaining",
+        "unit": "kW",
+        "device_class": "power",
+        "state_class": "measurement",
+    },
     "peak_power_tomorrow": {
         "name": "Peak Power Tomorrow",
         "unit": "kW",
