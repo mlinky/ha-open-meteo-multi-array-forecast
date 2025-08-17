@@ -20,7 +20,7 @@ from homeassistant.const import (
     UnitOfPower,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -352,7 +352,9 @@ class SolarTotalSensor(CoordinatorEntity, SensorEntity):
 
 class SolarEnergyDashboardSensor(CoordinatorEntity, SensorEntity):
     """Energy Dashboard specific sensor for solar production forecast."""
-    
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC  # Optional: categorize as diagnostic if not user-facing
+
     def __init__(
         self,
         coordinator: SolarForecastCoordinator,
@@ -362,20 +364,19 @@ class SolarEnergyDashboardSensor(CoordinatorEntity, SensorEntity):
     ):
         """Initialize the energy dashboard sensor."""
         super().__init__(coordinator)
-        
         self.coordinator = coordinator
         self.entry_id = entry_id
         self.sensor_type = sensor_type
-        
+
         # Entity attributes
         self._attr_name = sensor_config['name']
         self._attr_unique_id = f"{DOMAIN}_{entry_id}_energy_{sensor_type}"
-        
-        # Sensor configuration - Energy Dashboard sensors are always energy-based
+
+        # Energy Dashboard sensors: always energy-based
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._attr_device_class = SensorDeviceClass.ENERGY
         self._attr_state_class = SensorStateClass.TOTAL_INCREASING
-    
+
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information."""
@@ -386,20 +387,20 @@ class SolarEnergyDashboardSensor(CoordinatorEntity, SensorEntity):
             model="Energy Dashboard Integration",
             sw_version="1.0.0",
         )
-    
+
     @property
     def native_value(self) -> float | None:
         """Return the forecast energy value."""
         if not self.coordinator.data:
             return None
-        
+
         # Calculate total energy across all arrays
         total_energy = 0.0
         arrays_with_data = 0
-        
+
         for array_data in self.coordinator.data.values():
             energy_value = None
-            
+
             if self.sensor_type == "energy_production_today":
                 energy_value = array_data.get("today_energy")
             elif self.sensor_type == "energy_production_tomorrow":
@@ -410,16 +411,16 @@ class SolarEnergyDashboardSensor(CoordinatorEntity, SensorEntity):
                 energy_value = self._calculate_this_hour_energy(array_data)
             elif self.sensor_type == "energy_production_next_hour":
                 energy_value = self._calculate_next_hour_energy(array_data)
-            
+
             if energy_value is not None:
                 total_energy += float(energy_value)
                 arrays_with_data += 1
-        
+
         if arrays_with_data > 0:
             return round(total_energy, 3)  # Higher precision for energy values
-        
+
         return None
-    
+
     @property
     def available(self) -> bool:
         """Return if entity is available."""
@@ -428,109 +429,111 @@ class SolarEnergyDashboardSensor(CoordinatorEntity, SensorEntity):
             and self.coordinator.data is not None
             and len(self.coordinator.data) > 0
         )
-    
+
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
         """Return energy dashboard specific attributes."""
         if not self.coordinator.data:
             return {}
-        
+
         attributes = {
             "arrays_count": len(self.coordinator.arrays),
             "integration": DOMAIN,
             "unit_of_measurement": self._attr_native_unit_of_measurement,
+            "has_entity_name": True,
+            "source": "solar",  # Mark as solar for Energy Dashboard
         }
-        
+
         # Add forecast data that the energy dashboard can use
         if self.sensor_type in ["energy_production_today", "energy_production_tomorrow"]:
             forecast_data = self._get_energy_forecast_data()
             if forecast_data:
                 attributes["forecast"] = forecast_data
-        
+
         # Add system configuration info
         total_kwp = sum(array.get("kwp", 0) for array in self.coordinator.arrays)
         attributes["total_system_kwp"] = total_kwp
-        
+
         return attributes
-    
+
     def _calculate_remaining_today_energy(self, array_data: Dict[str, Any]) -> float:
         """Calculate remaining energy production for today."""
         timestamps = array_data.get("timestamps", [])
         power_values = array_data.get("power_forecast", [])
-        
+
         if not timestamps or not power_values:
             return 0.0
-        
+
         now = datetime.now().astimezone()
         today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
         uk_tz = ZoneInfo('Europe/London')
-        
+
         remaining_energy = 0.0
-        
+
         for i, timestamp in enumerate(timestamps):
             # Only count future hours today
-            if (now.replace(tzinfo=uk_tz) <= timestamp.replace(tzinfo=uk_tz) <= today_end.replace(tzinfo=uk_tz) 
+            if (now.replace(tzinfo=uk_tz) <= timestamp.replace(tzinfo=uk_tz) <= today_end.replace(tzinfo=uk_tz)
                 and i < len(power_values) and power_values[i] is not None):
                 remaining_energy += power_values[i]  # Assuming 1-hour intervals
-        
+
         return remaining_energy
-    
+
     def _calculate_this_hour_energy(self, array_data: Dict[str, Any]) -> float:
         """Calculate energy production for the current hour."""
         timestamps = array_data.get("timestamps", [])
         power_values = array_data.get("power_forecast", [])
-        
+
         if not timestamps or not power_values:
             return 0.0
-        
+
         now = datetime.now().astimezone()
         current_hour_start = now.replace(minute=0, second=0, microsecond=0)
         current_hour_end = current_hour_start + timedelta(hours=1)
         uk_tz = ZoneInfo('Europe/London')
-        
+
         for i, timestamp in enumerate(timestamps):
-            if (current_hour_start.replace(tzinfo=uk_tz) <= timestamp.replace(tzinfo=uk_tz) < current_hour_end.replace(tzinfo=uk_tz) 
+            if (current_hour_start.replace(tzinfo=uk_tz) <= timestamp.replace(tzinfo=uk_tz) < current_hour_end.replace(tzinfo=uk_tz)
                 and i < len(power_values) and power_values[i] is not None):
                 return power_values[i]  # Return power as energy for 1-hour period
-        
+
         return 0.0
-    
+
     def _calculate_next_hour_energy(self, array_data: Dict[str, Any]) -> float:
         """Calculate energy production for the next hour."""
         timestamps = array_data.get("timestamps", [])
         power_values = array_data.get("power_forecast", [])
-        
+
         if not timestamps or not power_values:
             return 0.0
-        
+
         now = datetime.now().astimezone()
         next_hour_start = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
         next_hour_end = next_hour_start + timedelta(hours=1)
         uk_tz = ZoneInfo('Europe/London')
-        
+
         for i, timestamp in enumerate(timestamps):
-            if (next_hour_start.replace(tzinfo=uk_tz) <= timestamp.replace(tzinfo=uk_tz) < next_hour_end.replace(tzinfo=uk_tz) 
+            if (next_hour_start.replace(tzinfo=uk_tz) <= timestamp.replace(tzinfo=uk_tz) < next_hour_end.replace(tzinfo=uk_tz)
                 and i < len(power_values) and power_values[i] is not None):
                 return power_values[i]  # Return power as energy for 1-hour period
-        
+
         return 0.0
-    
+
     def _get_energy_forecast_data(self) -> List[Dict[str, Any]]:
         """Get detailed energy forecast data for the energy dashboard."""
         if not self.coordinator.data:
             return []
-        
+
         # Get combined forecast from all arrays
         combined_data = self.coordinator._combine_array_data()
         timestamps = combined_data.get("timestamps", [])
         power_values = combined_data.get("power_forecast", [])
-        
+
         if not timestamps or not power_values:
             return []
-        
+
         forecast_data = []
         now = datetime.now().astimezone()
-        
+
         # Determine time range based on sensor type
         if self.sensor_type == "energy_production_today":
             start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -541,16 +544,16 @@ class SolarEnergyDashboardSensor(CoordinatorEntity, SensorEntity):
         else:
             start_time = now
             end_time = now + timedelta(hours=48)  # Default to 48 hours
-        
+
         uk_tz = ZoneInfo('Europe/London')
-        
+
         for i, timestamp in enumerate(timestamps):
-            if (start_time.replace(tzinfo=uk_tz) <= timestamp.replace(tzinfo=uk_tz) < end_time.replace(tzinfo=uk_tz) 
+            if (start_time.replace(tzinfo=uk_tz) <= timestamp.replace(tzinfo=uk_tz) < end_time.replace(tzinfo=uk_tz)
                 and i < len(power_values) and power_values[i] is not None):
                 forecast_data.append({
                     "datetime": timestamp.isoformat(),
                     "power": round(power_values[i], 3),
                     "energy": round(power_values[i], 3),  # Assuming 1-hour intervals
                 })
-        
+
         return forecast_data
