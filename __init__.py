@@ -1,8 +1,8 @@
 """
-Multi-Array Solar Forecast Integration for Home Assistant.
+Multi-Array Solar Forecast Integration for Home Assistant with Energy Dashboard support.
 
 This integration provides solar power forecasting for multiple solar arrays
-using the Open-Meteo weather API.
+using the Open-Meteo weather API and integrates with the Home Assistant Energy Dashboard.
 """
 from __future__ import annotations
 
@@ -23,6 +23,8 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 SERVICE_UPDATE_FORECAST = "update_forecast"
 SERVICE_GET_HOURLY_FORECAST = "get_hourly_forecast"
+SERVICE_GET_ENERGY_DASHBOARD_FORECAST = "get_energy_dashboard_forecast"
+SERVICE_GET_TOTAL_SYSTEM_FORECAST = "get_total_system_forecast"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -56,6 +58,75 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         
         return {"forecast": []}
 
+    async def handle_get_energy_dashboard_forecast(call: ServiceCall) -> Dict[str, Any]:
+        """Handle the get energy dashboard forecast service call."""
+        entry_id = call.data.get("entry_id")
+        forecast_type = call.data.get("forecast_type", "today")
+        
+        if entry_id and entry_id in hass.data[DOMAIN]:
+            coordinator = hass.data[DOMAIN][entry_id]
+            if isinstance(coordinator, SolarForecastCoordinator):
+                forecast_data = coordinator.get_energy_dashboard_forecast(forecast_type)
+                return {
+                    "forecast_data": forecast_data,
+                    "forecast_type": forecast_type,
+                    "entry_id": entry_id,
+                }
+        
+        return {"forecast_data": {}, "error": "Invalid entry_id or coordinator not found"}
+
+    async def handle_get_total_system_forecast(call: ServiceCall) -> Dict[str, Any]:
+        """Handle the get total system forecast service call."""
+        entry_id = call.data.get("entry_id")
+        hours = call.data.get("hours", 24)
+        
+        if entry_id and entry_id in hass.data[DOMAIN]:
+            coordinator = hass.data[DOMAIN][entry_id]
+            if isinstance(coordinator, SolarForecastCoordinator):
+                # Get combined forecast for specified hours
+                combined_data = coordinator._combine_array_data()
+                timestamps = combined_data.get("timestamps", [])
+                power_values = combined_data.get("power_forecast", [])
+                
+                if timestamps and power_values:
+                    from datetime import datetime, timedelta
+                    from zoneinfo import ZoneInfo
+                    
+                    now = datetime.now().astimezone()
+                    end_time = now + timedelta(hours=hours)
+                    uk_tz = ZoneInfo('Europe/London')
+                    
+                    forecast = []
+                    total_energy = 0.0
+                    
+                    for i, timestamp in enumerate(timestamps):
+                        if timestamp.replace(tzinfo=uk_tz) > end_time.replace(tzinfo=uk_tz):
+                            break
+                        if timestamp.replace(tzinfo=uk_tz) >= now.replace(tzinfo=uk_tz) and i < len(power_values):
+                            energy_kwh = power_values[i]
+                            total_energy += energy_kwh
+                            forecast.append({
+                                "datetime": timestamp.isoformat(),
+                                "power_kw": round(power_values[i], 3),
+                                "energy_kwh": round(energy_kwh, 3),
+                            })
+                    
+                    # Calculate system totals
+                    total_kwp = sum(array.get("kwp", 0) for array in coordinator.arrays)
+                    
+                    return {
+                        "forecast": forecast,
+                        "total_energy_kwh": round(total_energy, 3),
+                        "system_kwp": total_kwp,
+                        "arrays_count": len(coordinator.arrays),
+                        "hours_requested": hours,
+                        "data_points": len(forecast),
+                        "generated_at": now.isoformat(),
+                    }
+        
+        return {"forecast": [], "error": "Invalid entry_id or no data available"}
+
+    # Register all services
     hass.services.async_register(
         DOMAIN,
         SERVICE_UPDATE_FORECAST,
@@ -66,6 +137,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN,
         SERVICE_GET_HOURLY_FORECAST,
         handle_get_hourly_forecast,
+    )
+    
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_ENERGY_DASHBOARD_FORECAST,
+        handle_get_energy_dashboard_forecast,
+    )
+    
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_TOTAL_SYSTEM_FORECAST,
+        handle_get_total_system_forecast,
     )
     
     return True
