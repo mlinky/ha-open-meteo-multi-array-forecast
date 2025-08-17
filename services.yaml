@@ -1,41 +1,81 @@
 update_forecast:
   name: Update Solar Forecast
-  description: Manually update the solar forecast data for all or specific arrays.
+  description: Manually update the solar forecast data for all arrays
   fields:
     entry_id:
       name: Entry ID
-      description: Configuration entry ID to update (optional - if not provided, all entries will be updated).
+      description: Specific config entry ID to update (optional - if not provided, updates all)
       required: false
-      example: "01234567890abcdef"
       selector:
         text:
 
 get_hourly_forecast:
   name: Get Hourly Forecast
-  description: Retrieve detailed hourly forecast data for a specific array or all arrays.
+  description: Get detailed hourly forecast data for a specific array or combined
   fields:
     entry_id:
       name: Entry ID
-      description: Configuration entry ID to get forecast from.
+      description: Config entry ID
       required: true
-      example: "01234567890abcdef"
       selector:
         text:
     array_name:
       name: Array Name
-      description: Name of the specific solar array (optional - if not provided, returns combined data for all arrays).
+      description: Name of the specific array (optional - if not provided, returns combined data)
       required: false
-      example: "South Roof"
       selector:
         text:
     days:
-      name: Forecast Days
-      description: Number of days of forecast data to retrieve.
+      name: Days
+      description: Number of days of forecast data to return (1-7)
       required: false
       default: 1
-      example: 3
       selector:
         number:
           min: 1
           max: 7
-          mode: slider
+
+get_energy_dashboard_forecast:
+  name: Get Energy Dashboard Forecast
+  description: Get forecast data specifically formatted for Home Assistant Energy Dashboard
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Config entry ID
+      required: true
+      selector:
+        text:
+    forecast_type:
+      name: Forecast Type
+      description: Type of forecast to return
+      required: false
+      default: "today"
+      selector:
+        select:
+          options:
+            - value: "today"
+              label: "Today's forecast"
+            - value: "tomorrow"
+              label: "Tomorrow's forecast"
+            - value: "remaining_today"
+              label: "Remaining today forecast"
+
+get_total_system_forecast:
+  name: Get Total System Forecast  
+  description: Get combined forecast for all solar arrays in the system
+  fields:
+    entry_id:
+      name: Entry ID
+      description: Config entry ID
+      required: true
+      selector:
+        text:
+    hours:
+      name: Hours
+      description: Number of hours of forecast data (1-168)
+      required: false
+      default: 24
+      selector:
+        number:
+          min: 1
+          max: 168
